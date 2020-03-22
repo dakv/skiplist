@@ -4,4 +4,7 @@
 mod skipnode;
 pub mod skiplist;
 
+pub use skiplist::SkipList;
+pub use skiplist::RandomGenerator;
+
 pub const K_MAX_HEIGHT: usize = 12;
