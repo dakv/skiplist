@@ -34,7 +34,6 @@ impl<T> Node<T> {
 
     #[inline]
     pub fn get_next(&self, n: usize) -> Option<*mut Node<T>> {
-        assert!(n >= 0);
         self.forward[n].map(|v| {
             v.as_ptr()
         })
@@ -42,7 +41,6 @@ impl<T> Node<T> {
 
     #[inline]
     pub fn get_mut_next(&self, n: usize) -> Option<NonNull<Node<T>>> {
-        assert!(n >= 0);
         self.forward[n]
     }
 }

@@ -5,6 +5,7 @@ use std::ptr::NonNull;
 use std::ptr::null_mut;
 use crate::skipnode::Node;
 use crate::K_MAX_HEIGHT;
+use std::marker::PhantomData;
 
 pub trait RandomGenerator {
     fn next(&mut self) -> usize;
@@ -25,7 +26,7 @@ pub struct SkipList<T> {
     len: usize,
 }
 
-impl<T: PartialOrd + Clone + fmt::Debug> SkipList<T> {
+impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
     pub fn new(rnd: Box<dyn RandomGenerator>) -> Self {
         SkipList {
             head: box Node::head(),
@@ -35,11 +36,33 @@ impl<T: PartialOrd + Clone + fmt::Debug> SkipList<T> {
         }
     }
 
+    /// Returns the number of elements in the skiplist.
+    /// # Examples
+    /// ```
+    /// use dakv_skiplist::SkipList;
+    ///
+    /// let mut sl = SkipList::default();
+    /// assert_eq!(sl.len(), 0);
+    ///
+    /// sl.insert(&1);
+    /// assert_eq!(sl.len(), 1);
+    /// ```
     #[inline]
     pub fn len(&self) -> usize {
         self.len
     }
 
+    /// Returns `true` if the skiplist is empty.
+    /// # Examples
+    /// ```
+    /// use dakv_skiplist::SkipList;
+    ///
+    /// let mut sl = SkipList::default();
+    /// assert!(sl.is_empty());
+    ///
+    /// sl.insert(&1);
+    /// assert_eq!(sl.is_empty(), false);
+    /// ```
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
@@ -53,6 +76,21 @@ impl<T: PartialOrd + Clone + fmt::Debug> SkipList<T> {
     #[inline]
     pub fn set_max_height(&mut self, h: usize) {
         self.max_height = h;
+    }
+
+    /// Clear every single node and reset the head node.
+    /// # Examples
+    /// ```
+    /// use dakv_skiplist::SkipList;
+    /// let mut sl = SkipList::default();
+    /// sl.insert(&1);
+    /// sl.clear();
+    /// ```
+    #[inline]
+    pub fn clear(&mut self) {
+        let new_head = Box::new(Node::head());
+        self.len = 0;
+        mem::replace(&mut self.head, new_head);
     }
 
     /// 1/4 probability
@@ -73,10 +111,9 @@ impl<T: PartialOrd + Clone + fmt::Debug> SkipList<T> {
         let mut const_ptr: *const Node<T> = self.head.as_ref();
         let mut height = self.get_max_height() - 1;
         loop {
-            // todo get_next()
             let next_ptr: *mut Node<T> = match (*const_ptr).get_next(height) {
                 None => { null_mut() }
-                Some(mut v) => {
+                Some(v) => {
                     v
                 }
             };
@@ -118,6 +155,15 @@ impl<T: PartialOrd + Clone + fmt::Debug> SkipList<T> {
                 x.as_mut().set_next(i, (*prev[i]).get_mut_next(i));
                 (*prev[i]).set_next(i, Some(x));
             }
+            self.len += 1;
+        }
+    }
+
+    pub fn contains(&mut self, key: &T) -> bool {
+        unsafe {
+            let mut prev = iter::repeat(null_mut()).take(K_MAX_HEIGHT).collect();
+            let x = self.find(key, &mut prev);
+            !x.is_null() && key == (*x).data.as_ref().unwrap()
         }
     }
 }
@@ -125,12 +171,12 @@ impl<T: PartialOrd + Clone + fmt::Debug> SkipList<T> {
 impl<T: PartialOrd + Clone + fmt::Display> fmt::Display for SkipList<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         unsafe {
-            write!(f, "head");
+            write!(f, "[")?;
             let mut head: NonNull<Node<T>> = mem::transmute_copy(&self.head);
             loop {
                 if let Some(next) = head.as_ref().forward[0] {
                     if let Some(value) = &next.as_ref().data {
-                        write!(f, " -> {}", value)?
+                        write!(f, "{} -> ", value)?
                     }
                     head = next;
                 } else {
@@ -138,7 +184,7 @@ impl<T: PartialOrd + Clone + fmt::Display> fmt::Display for SkipList<T> {
                 }
             }
         }
-        write!(f, "\n")
+        write!(f, "]")
     }
 }
 
@@ -170,14 +216,84 @@ impl RandomGenerator for Random {
     }
 }
 
-impl<T: PartialOrd + Clone + fmt::Debug> Default for SkipList<T> {
+impl<T: PartialOrd + Clone> Default for SkipList<T> {
     #[inline]
     fn default() -> Self {
         Self::new(box Random::new(0xdeadbeef))
     }
 }
 
-fn key_is_after_node<T: PartialOrd + fmt::Debug>(key: &T, node: *mut Node<T>) -> bool {
+impl<T> Extend<T> for SkipList<T>
+    where T: PartialEq + PartialOrd + Clone
+{
+    #[inline]
+    fn extend<I: iter::IntoIterator<Item=T>>(&mut self, iterable: I) {
+        let iterator = iterable.into_iter();
+        for element in iterator {
+            self.insert(&element);
+        }
+    }
+}
+
+impl<T> iter::FromIterator<T> for SkipList<T>
+    where T: PartialOrd + PartialEq + Clone
+{
+    #[inline]
+    fn from_iter<I>(iter: I) -> SkipList<T>
+        where I: iter::IntoIterator<Item=T>,
+    {
+        let mut sl = SkipList::default();
+        sl.extend(iter);
+        sl
+    }
+}
+
+pub struct Iter<'a, T: 'a> {
+    head: *const Node<T>,
+    size: usize,
+    _lifetime: PhantomData<&'a T>,
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<&'a T> {
+        unsafe {
+            if (*self.head).forward[0].is_none() {
+                return None;
+            }
+            if let Some(next) = (*self.head).forward[0] {
+                self.head = next.as_ptr() as *const Node<T>;
+                if self.size > 0 {
+                    self.size -= 1;
+                }
+                return (*self.head).data.as_ref();
+            }
+            None
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.size, Some(self.size))
+    }
+}
+
+impl<'a, T> iter::IntoIterator for &'a SkipList<T>
+    where T: PartialOrd + PartialEq + Clone
+{
+    type Item = &'a T;
+    type IntoIter = Iter<'a, T>;
+
+    fn into_iter(self) -> Iter<'a, T> {
+        Iter {
+            head: unsafe { mem::transmute_copy(&self.head) },
+            size: self.len(),
+            _lifetime: PhantomData,
+        }
+    }
+}
+
+fn key_is_after_node<T: PartialOrd>(key: &T, node: *mut Node<T>) -> bool {
     if node.is_null() {
         false
     } else {
@@ -197,14 +313,68 @@ fn key_is_after_node<T: PartialOrd + fmt::Debug>(key: &T, node: *mut Node<T>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::iter::FromIterator;
 
     #[test]
     fn test_basic() {
         let mut sl: SkipList<usize> = SkipList::default();
+        for i in 0..100 {
+            sl.insert(&i);
+        }
+        assert_eq!(sl.len(), 100);
+        for i in 0..100 {
+            assert!(sl.contains(&i));
+        }
+        for i in 100..120 {
+            assert_eq!(sl.contains(&i), false);
+        }
+    }
+
+    #[test]
+    fn test_clear() {
+        let mut sl = SkipList::default();
         for i in 0..12 {
             sl.insert(&i);
         }
-        assert_eq!("head -> 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11\n", format!("{}", sl));
+        sl.clear();
+        assert!(sl.is_empty());
+        assert_eq!(format!("{}", sl), "[]");
+    }
+
+    #[test]
+    fn test_extend() {
+        let mut sl: SkipList<usize> = SkipList::default();
+        sl.extend(0..10);
+        assert_eq!(sl.len(), 10);
+        for i in 0..10 {
+            assert!(sl.contains(&i));
+        }
+    }
+
+    #[test]
+    fn test_from_iter() {
+        let mut sl = SkipList::from_iter(0..10);
+        for i in 0..10 {
+            assert!(sl.contains(&i));
+        }
+    }
+
+    #[test]
+    fn test_into_iter() {
+        let mut sl = SkipList::default();
+        sl.extend(0..10);
+        let mut count = 0;
+        for i in &sl {
+            assert_eq!(i, &count);
+            count += 1;
+        }
+
+        let mut sl = SkipList::default();
+        let data = vec![3, 4, 6, 7, 1, 2, 5];
+        sl.extend(&data);
+        for i in &data {
+            assert!(sl.contains(&i));
+        }
     }
 
     #[test]
@@ -213,15 +383,12 @@ mod tests {
         for i in (0..12).rev() {
             sl.insert(&i);
         }
-        assert_eq!("head -> 0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11\n", format!("{}", sl));
-    }
+        assert_eq!("[0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> ]", format!("{}", sl));
 
-    #[test]
-    fn test_basic_desc2() {
         let mut sl: SkipList<usize> = SkipList::default();
         for i in vec![3, 4, 6, 7, 1, 2, 5] {
             sl.insert(&i);
         }
-        assert_eq!("head -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7\n", format!("{}", sl));
+        assert_eq!("[1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> ]", format!("{}", sl));
     }
 }
