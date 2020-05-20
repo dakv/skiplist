@@ -1,11 +1,11 @@
-use std::fmt;
-use std::iter;
-use std::mem;
-use std::ptr::NonNull;
-use std::ptr::null_mut;
 use crate::skipnode::Node;
 use crate::K_MAX_HEIGHT;
+use std::fmt;
+use std::iter;
 use std::marker::PhantomData;
+use std::mem;
+use std::ptr::null_mut;
+use std::ptr::NonNull;
 
 pub trait RandomGenerator {
     fn next(&mut self) -> usize;
@@ -29,7 +29,7 @@ pub struct SkipList<T> {
 impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
     pub fn new(rnd: Box<dyn RandomGenerator>) -> Self {
         SkipList {
-            head: box Node::head(),
+            head: Box::new(Node::head()),
             rnd,
             max_height: 1, // max height in all of the nodes except head node
             len: 0,
@@ -87,10 +87,10 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
     /// sl.clear();
     /// ```
     #[inline]
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> Box<Node<T>> {
         let new_head = Box::new(Node::head());
         self.len = 0;
-        mem::replace(&mut self.head, new_head);
+        mem::replace(&mut self.head, new_head)
     }
 
     /// 1/4 probability
@@ -106,16 +106,16 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
     }
 
     /// Look for the node greater than or equal to key
+    /// # Safety
+    /// todo doc
     pub unsafe fn find(&mut self, key: &T, prev: &mut Vec<*mut Node<T>>) -> *mut Node<T> {
         // const pointer
         let mut const_ptr: *const Node<T> = self.head.as_ref();
         let mut height = self.get_max_height() - 1;
         loop {
             let next_ptr: *mut Node<T> = match (*const_ptr).get_next(height) {
-                None => { null_mut() }
-                Some(v) => {
-                    v
-                }
+                None => null_mut(),
+                Some(v) => v,
             };
             // if key > next_ptr => now = next
             if key_is_after_node(key, next_ptr) {
@@ -143,18 +143,20 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
             let height = self.random_height();
             // record all previous node that are higher than the current
             if height > self.get_max_height() {
-                for i in self.get_max_height()..height {
-                    prev[i] = self.head.as_mut();
+                for node in prev.iter_mut().take(height).skip(self.get_max_height()) {
+                    *node = self.head.as_mut();
                 }
                 // todo concurrent support
                 self.set_max_height(height);
             }
             let x = Box::new(Node::new(key.clone()));
-            let mut x = Box::into_raw_non_null(x);
-            for i in 0..height {
-                x.as_mut().set_next(i, (*prev[i]).get_mut_next(i));
-                (*prev[i]).set_next(i, Some(x));
+            let mut x = NonNull::from(Box::leak(x));
+            //            let mut x = Box::into_raw_non_null(x);
+            for (i, &mut node) in prev.iter_mut().enumerate().take(height) {
+                x.as_mut().set_next(i, (*node).get_mut_next(i));
+                (*node).set_next(i, Some(x));
             }
+
             self.len += 1;
         }
     }
@@ -173,15 +175,11 @@ impl<T: PartialOrd + Clone + fmt::Display> fmt::Display for SkipList<T> {
         unsafe {
             write!(f, "[")?;
             let mut head: NonNull<Node<T>> = mem::transmute_copy(&self.head);
-            loop {
-                if let Some(next) = head.as_ref().forward[0] {
-                    if let Some(value) = &next.as_ref().data {
-                        write!(f, "{} -> ", value)?
-                    }
-                    head = next;
-                } else {
-                    break;
+            while let Some(next) = head.as_ref().forward[0] {
+                if let Some(value) = &next.as_ref().data {
+                    write!(f, "{} -> ", value)?
                 }
+                head = next;
             }
         }
         write!(f, "]")
@@ -189,13 +187,13 @@ impl<T: PartialOrd + Clone + fmt::Display> fmt::Display for SkipList<T> {
 }
 
 struct Random {
-    seed_: usize
+    seed_: usize,
 }
 
 impl Random {
     pub fn new(s: usize) -> Random {
-        let mut seed_ = s & 0x7fffffffusize;
-        if seed_ == 0 || seed_ == 2147483647 {
+        let mut seed_ = s & 0x7fff_ffff_usize;
+        if seed_ == 0 || seed_ == 2_147_483_647 {
             seed_ = 1;
         }
         Random { seed_ }
@@ -204,7 +202,7 @@ impl Random {
 
 impl RandomGenerator for Random {
     fn next(&mut self) -> usize {
-        static M: usize = 2147483647; // 2^31-1
+        static M: usize = 2_147_483_647; // 2^31-1
         static A: usize = 16807; // bits 14, 8, 7, 5, 2, 1, 0
         let product = self.seed_ * A;
         self.seed_ = (product >> 31) + (product & M);
@@ -219,15 +217,16 @@ impl RandomGenerator for Random {
 impl<T: PartialOrd + Clone> Default for SkipList<T> {
     #[inline]
     fn default() -> Self {
-        Self::new(box Random::new(0xdeadbeef))
+        Self::new(Box::new(Random::new(0xdead_beef)))
     }
 }
 
 impl<T> Extend<T> for SkipList<T>
-    where T: PartialEq + PartialOrd + Clone
+where
+    T: PartialEq + PartialOrd + Clone,
 {
     #[inline]
-    fn extend<I: iter::IntoIterator<Item=T>>(&mut self, iterable: I) {
+    fn extend<I: iter::IntoIterator<Item = T>>(&mut self, iterable: I) {
         let iterator = iterable.into_iter();
         for element in iterator {
             self.insert(&element);
@@ -236,11 +235,13 @@ impl<T> Extend<T> for SkipList<T>
 }
 
 impl<T> iter::FromIterator<T> for SkipList<T>
-    where T: PartialOrd + PartialEq + Clone
+where
+    T: PartialOrd + PartialEq + Clone,
 {
     #[inline]
     fn from_iter<I>(iter: I) -> SkipList<T>
-        where I: iter::IntoIterator<Item=T>,
+    where
+        I: iter::IntoIterator<Item = T>,
     {
         let mut sl = SkipList::default();
         sl.extend(iter);
@@ -259,9 +260,8 @@ impl<'a, T> Iterator for Iter<'a, T> {
 
     fn next(&mut self) -> Option<&'a T> {
         unsafe {
-            if (*self.head).forward[0].is_none() {
-                return None;
-            }
+            // If the lowest forward node is None, return None.
+            (*self.head).forward[0]?;
             if let Some(next) = (*self.head).forward[0] {
                 self.head = next.as_ptr() as *const Node<T>;
                 if self.size > 0 {
@@ -279,7 +279,8 @@ impl<'a, T> Iterator for Iter<'a, T> {
 }
 
 impl<'a, T> iter::IntoIterator for &'a SkipList<T>
-    where T: PartialOrd + PartialEq + Clone
+where
+    T: PartialOrd + PartialEq + Clone,
 {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
@@ -300,15 +301,11 @@ fn key_is_after_node<T: PartialOrd>(key: &T, node: *mut Node<T>) -> bool {
         unsafe {
             match &(*node).data {
                 None => panic!("Data can not be None"),
-                Some(v) => {
-                    let c = v < key;
-                    c
-                }
+                Some(v) => v < key,
             }
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -363,10 +360,8 @@ mod tests {
     fn test_into_iter() {
         let mut sl = SkipList::default();
         sl.extend(0..10);
-        let mut count = 0;
-        for i in &sl {
+        for (count, i) in (&sl).into_iter().enumerate() {
             assert_eq!(i, &count);
-            count += 1;
         }
 
         let mut sl = SkipList::default();
@@ -383,10 +378,13 @@ mod tests {
         for i in (0..12).rev() {
             sl.insert(&i);
         }
-        assert_eq!("[0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> ]", format!("{}", sl));
+        assert_eq!(
+            "[0 -> 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> 8 -> 9 -> 10 -> 11 -> ]",
+            format!("{}", sl)
+        );
 
         let mut sl: SkipList<usize> = SkipList::default();
-        for i in vec![3, 4, 6, 7, 1, 2, 5] {
+        for i in &[3, 4, 6, 7, 1, 2, 5] {
             sl.insert(&i);
         }
         assert_eq!("[1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> ]", format!("{}", sl));

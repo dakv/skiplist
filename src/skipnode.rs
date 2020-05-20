@@ -1,8 +1,7 @@
-use std::ptr::NonNull;
-use std::fmt;
-use std::fmt::{Formatter, Error};
 use crate::K_MAX_HEIGHT;
-
+use std::fmt;
+use std::fmt::{Error, Formatter};
+use std::ptr::NonNull;
 
 /// Key and value should never be None, except the head node.
 /// Forward can not be None, except head node
@@ -34,9 +33,7 @@ impl<T> Node<T> {
 
     #[inline]
     pub fn get_next(&self, n: usize) -> Option<*mut Node<T>> {
-        self.forward[n].map(|v| {
-            v.as_ptr()
-        })
+        self.forward[n].map(|v| v.as_ptr())
     }
 
     #[inline]
@@ -46,7 +43,8 @@ impl<T> Node<T> {
 }
 
 impl<T> fmt::Display for Node<T>
-    where T: fmt::Display
+where
+    T: fmt::Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         if let Some(ref v) = self.data {
