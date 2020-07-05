@@ -204,7 +204,7 @@ impl RandomGenerator for Random {
     fn next(&mut self) -> usize {
         static M: usize = 2_147_483_647; // 2^31-1
         static A: usize = 16807; // bits 14, 8, 7, 5, 2, 1, 0
-        let product = self.seed_ * A;
+        let product = self.seed_.wrapping_mul(A);
         self.seed_ = (product >> 31) + (product & M);
 
         if self.seed_ > M {
