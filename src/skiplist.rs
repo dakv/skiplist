@@ -351,7 +351,6 @@ fn key_is_after_node<T: PartialOrd>(key: &T, node: *mut Node<T>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::iter::FromIterator;
 
     #[test]
     fn test_basic() {
@@ -391,7 +390,7 @@ mod tests {
 
     #[test]
     fn test_from_iter() {
-        let mut sl = SkipList::from_iter(0..10);
+        let mut sl: SkipList<i32> = (0..10).collect();
         for i in 0..10 {
             assert!(sl.contains(&i));
         }
