@@ -8,7 +8,24 @@ use std::ptr::null_mut;
 use std::ptr::NonNull;
 
 pub trait RandomGenerator {
-    fn next(&mut self) -> usize;
+    fn next(&mut self) -> u64;
+    // Returns a uniformly distributed value in the range [0..n-1]
+    // REQUIRES: n > 0
+    fn uniform(&mut self, n: u64) -> u64 {
+        self.next() % n
+    }
+    // Randomly returns true ~"1/n" of the time, and false otherwise.
+    // REQUIRES: n > 0
+    fn one_in(&mut self, n: u64) -> bool {
+        (self.next() % n) == 0
+    }
+    // Skewed: pick "base" uniformly from range [0,max_log] and then
+    // return "base" random bits.  The effect is to pick a number in the
+    // range [0,2^max_log-1] with exponential bias towards smaller numbers.
+    fn skewed(&mut self, max_log: u64) -> u64 {
+        let tmp = 1 << self.uniform(max_log + 1);
+        self.uniform(tmp)
+    }
 }
 
 /// Skip list is a data structure that allows O(log n) search complexity as well as
@@ -95,7 +112,7 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
 
     /// 1/4 probability
     fn random_height(&mut self) -> usize {
-        static K_BRANCHING: usize = 4;
+        static K_BRANCHING: u64 = 4;
         let mut height = 1;
         while height < K_MAX_HEIGHT && (self.rnd.next() % K_BRANCHING == 0) {
             height += 1;
@@ -168,6 +185,30 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
             !x.is_null() && key == (*x).data.as_ref().unwrap()
         }
     }
+
+    pub fn find_less_than(&self, key: T) -> Option<NonNull<Node<T>>> {
+        let mut x = Some(NonNull::from(self.head.as_ref()));
+        let mut level = self.max_height - 1;
+        unsafe {
+            loop {
+                //            assert(x == head_ || compare_(x->key, key) < 0);
+                let next = x.as_ref().unwrap().as_ref().forward[level];
+                if next.is_none() || *x.as_ref().unwrap().as_ref().data.as_ref().unwrap() < key {
+                    if level == 0 {
+                        return x;
+                    } else {
+                        level -= 1;
+                    }
+                } else {
+                    x = next;
+                }
+            }
+        }
+    }
+
+    pub fn get_head(&self) -> &Box<Node<T>> {
+        &self.head
+    }
 }
 
 impl<T: PartialOrd + Clone + fmt::Display> fmt::Display for SkipList<T> {
@@ -186,13 +227,13 @@ impl<T: PartialOrd + Clone + fmt::Display> fmt::Display for SkipList<T> {
     }
 }
 
-struct Random {
-    seed_: usize,
+pub struct Random {
+    seed_: u64,
 }
 
 impl Random {
-    pub fn new(s: usize) -> Random {
-        let mut seed_ = s & 0x7fff_ffff_usize;
+    pub fn new(s: u64) -> Random {
+        let mut seed_ = s & 0x7fff_ffff_u64;
         if seed_ == 0 || seed_ == 2_147_483_647 {
             seed_ = 1;
         }
@@ -201,9 +242,9 @@ impl Random {
 }
 
 impl RandomGenerator for Random {
-    fn next(&mut self) -> usize {
-        static M: usize = 2_147_483_647; // 2^31-1
-        static A: usize = 16807; // bits 14, 8, 7, 5, 2, 1, 0
+    fn next(&mut self) -> u64 {
+        static M: u64 = 2_147_483_647; // 2^31-1
+        static A: u64 = 16807; // bits 14, 8, 7, 5, 2, 1, 0
         let product = self.seed_.wrapping_mul(A);
         self.seed_ = (product >> 31) + (product & M);
 
