@@ -206,7 +206,7 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
         }
     }
 
-    pub fn get_head(&self) -> &Box<Node<T>> {
+    pub fn get_head(&self) -> &Node<T> {
         &self.head
     }
 }
