@@ -208,6 +208,24 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
         }
     }
 
+    pub fn find_last(&self) -> *const Node<T> {
+        let mut x: *const Node<T> = unsafe { mem::transmute_copy(&self.head) };
+        let mut level = self.get_max_height() - 1;
+
+        loop {
+            let next = unsafe { (*x).get_next(level) };
+            if next.is_none() {
+                if level == 0 {
+                    return x;
+                } else {
+                    level -= 1;
+                }
+            } else {
+                x = next.unwrap();
+            }
+        }
+    }
+
     pub fn get_head(&self) -> &Node<T> {
         &self.head
     }
