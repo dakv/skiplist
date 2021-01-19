@@ -125,7 +125,7 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
     /// Look for the node greater than or equal to key
     /// # Safety
     /// todo doc
-    pub unsafe fn find(&mut self, key: &T, prev: &mut Vec<*mut Node<T>>) -> *mut Node<T> {
+    pub unsafe fn find(&self, key: &T, prev: &mut Vec<*mut Node<T>>) -> *mut Node<T> {
         // const pointer
         let mut const_ptr: *const Node<T> = self.head.as_ref();
         let mut height = self.get_max_height() - 1;
@@ -138,7 +138,9 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
             if key_is_after_node(key, next_ptr) {
                 const_ptr = next_ptr as *const Node<T>;
             } else {
-                prev[height] = const_ptr as *mut Node<T>;
+                if !prev.is_empty() {
+                    prev[height] = const_ptr as *mut Node<T>;
+                }
                 if height == 0 {
                     return next_ptr;
                 } else {
