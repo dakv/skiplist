@@ -214,14 +214,12 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
 
         loop {
             let next = unsafe { (*x).get_next(level) };
-            if next.is_none() {
-                if level == 0 {
-                    return x;
-                } else {
-                    level -= 1;
-                }
+            if let Some(v) = next {
+                x = v;
+            } else if level == 0 {
+                return x;
             } else {
-                x = next.unwrap();
+                level -= 1;
             }
         }
     }
