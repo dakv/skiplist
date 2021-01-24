@@ -188,28 +188,25 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
         }
     }
 
-    pub fn find_less_than(&self, key: T) -> Option<NonNull<Node<T>>> {
-        let mut x = Some(NonNull::from(self.head.as_ref()));
+    pub fn find_less_than(&self, key: &T) -> *const Node<T> {
+        let mut x: *const Node<T> = unsafe { mem::transmute_copy(&self.head) };
         let mut level = self.max_height - 1;
-        unsafe {
-            loop {
-                //            assert(x == head_ || compare_(x->key, key) < 0);
-                let next = x.as_ref().unwrap().as_ref().forward[level];
-                if next.is_none() || *x.as_ref().unwrap().as_ref().data.as_ref().unwrap() < key {
-                    if level == 0 {
-                        return x;
-                    } else {
-                        level -= 1;
-                    }
+        loop {
+            let next = unsafe { (*x).get_next(level) };
+            if next.is_none() || unsafe { (*next.unwrap()).data.as_ref().unwrap() >= key } {
+                if level == 0 {
+                    return x;
                 } else {
-                    x = next;
+                    level -= 1;
                 }
+            } else {
+                x = next.unwrap();
             }
         }
     }
 
     pub fn find_last(&self) -> *const Node<T> {
-        let mut x: *const Node<T> = unsafe { mem::transmute_copy(&self.head) };
+        let mut x = &*self.head as *const Node<T>;
         let mut level = self.get_max_height() - 1;
 
         loop {
