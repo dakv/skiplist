@@ -188,6 +188,7 @@ impl<T: PartialOrd + PartialEq + Clone> SkipList<T> {
         }
     }
 
+    #[allow(clippy::unnecessary_unwrap)]
     pub fn find_less_than(&self, key: &T) -> *const Node<T> {
         let mut x: *const Node<T> = unsafe { mem::transmute_copy(&self.head) };
         let mut level = self.max_height - 1;
