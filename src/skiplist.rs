@@ -1,6 +1,7 @@
 use crate::cmp::DefaultComparator;
 use crate::skipnode::Node;
 use crate::{BaseComparator, Random, RandomGenerator, K_MAX_HEIGHT};
+use std::cmp::Ordering;
 use std::fmt;
 use std::iter;
 use std::marker::PhantomData;
@@ -195,15 +196,16 @@ impl<T: Clone> SkipList<T> {
     }
 
     fn eq(&self, a: &T, b: &T) -> bool {
-        self.cmp.compare(a, b) == 0
+        self.cmp.compare(a, b) == Ordering::Equal
     }
 
     fn lt(&self, a: &T, b: &T) -> bool {
-        self.cmp.compare(a, b) < 0
+        self.cmp.compare(a, b) == Ordering::Less
     }
 
     fn gte(&self, a: &T, b: &T) -> bool {
-        self.cmp.compare(a, b) >= 0
+        let r = self.cmp.compare(a, b);
+        r == Ordering::Greater || r == Ordering::Equal
     }
 
     #[allow(clippy::unnecessary_unwrap)]

@@ -1,7 +1,9 @@
+use std::cmp::Ordering;
+
 pub trait BaseComparator<T> {
     // error[E0658]: associated type defaults are unstable
     // To make into an object
-    fn compare(&self, a: &T, b: &T) -> i8;
+    fn compare(&self, a: &T, b: &T) -> Ordering;
 }
 // fixme i8 -> Order
 
@@ -12,14 +14,14 @@ impl<T> BaseComparator<T> for DefaultComparator
 where
     T: PartialOrd,
 {
-    fn compare(&self, a: &T, b: &T) -> i8 {
-        return if a.eq(b) {
-            0
+    fn compare(&self, a: &T, b: &T) -> Ordering {
+        if a.eq(b) {
+            Ordering::Equal
         } else if a.gt(b) {
-            1
+            Ordering::Greater
         } else {
-            -1
-        };
+            Ordering::Less
+        }
     }
 }
 
