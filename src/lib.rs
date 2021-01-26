@@ -1,8 +1,10 @@
+mod cmp;
+mod random;
 mod skiplist;
 mod skipnode;
 
-pub use skiplist::Random;
-pub use skiplist::RandomGenerator;
+pub use cmp::KeyComparator;
+pub use random::{Random, RandomGenerator};
 pub use skiplist::SkipList;
 pub use skipnode::Node;
 
