@@ -3,7 +3,7 @@ mod random;
 mod skiplist;
 mod skipnode;
 
-pub use cmp::KeyComparator;
+pub use cmp::BaseComparator;
 pub use random::{Random, RandomGenerator};
 pub use skiplist::SkipList;
 pub use skipnode::Node;

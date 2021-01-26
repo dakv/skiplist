@@ -1,6 +1,6 @@
 use crate::cmp::DefaultComparator;
 use crate::skipnode::Node;
-use crate::{KeyComparator, Random, RandomGenerator, K_MAX_HEIGHT};
+use crate::{BaseComparator, Random, RandomGenerator, K_MAX_HEIGHT};
 use std::fmt;
 use std::iter;
 use std::marker::PhantomData;
@@ -22,14 +22,25 @@ pub struct SkipList<T> {
     rnd: Box<dyn RandomGenerator>,
     max_height: usize,
     len: usize,
-    cmp: Rc<dyn KeyComparator<T, Item = T>>,
+    cmp: Rc<dyn BaseComparator<T>>,
 }
+
 // todo remove Clone
 impl<T: Clone> SkipList<T> {
-    pub fn new(rnd: Box<dyn RandomGenerator>, cmp: Rc<dyn KeyComparator<T, Item = T>>) -> Self {
+    pub fn new(rnd: Box<dyn RandomGenerator>, cmp: Rc<dyn BaseComparator<T>>) -> Self {
         SkipList {
             head: Box::new(Node::head()),
             rnd,
+            cmp,
+            max_height: 1, // max height in all of the nodes except head node
+            len: 0,
+        }
+    }
+
+    pub fn new_by_cmp(cmp: Rc<dyn BaseComparator<T>>) -> Self {
+        SkipList {
+            head: Box::new(Node::head()),
+            rnd: Box::new(Random::new(0xdead_beef)),
             cmp,
             max_height: 1, // max height in all of the nodes except head node
             len: 0,
