@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 use std::mem;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
-use std::rc::Rc;
+use std::sync::Arc;
 
 /// Skip list is a data structure that allows O(log n) search complexity as well as
 /// O(log n) insertion complexity within an ordered sequence of n elements.
@@ -23,12 +23,12 @@ pub struct SkipList<T> {
     rnd: Box<dyn RandomGenerator>,
     max_height: usize,
     len: usize,
-    cmp: Rc<dyn BaseComparator<T>>,
+    cmp: Arc<dyn BaseComparator<T>>,
 }
 
 // todo remove Clone
 impl<T: Clone> SkipList<T> {
-    pub fn new(rnd: Box<dyn RandomGenerator>, cmp: Rc<dyn BaseComparator<T>>) -> Self {
+    pub fn new(rnd: Box<dyn RandomGenerator>, cmp: Arc<dyn BaseComparator<T>>) -> Self {
         SkipList {
             head: Box::new(Node::head()),
             rnd,
@@ -38,7 +38,7 @@ impl<T: Clone> SkipList<T> {
         }
     }
 
-    pub fn new_by_cmp(cmp: Rc<dyn BaseComparator<T>>) -> Self {
+    pub fn new_by_cmp(cmp: Arc<dyn BaseComparator<T>>) -> Self {
         SkipList {
             head: Box::new(Node::head()),
             rnd: Box::new(Random::new(0xdead_beef)),
@@ -269,7 +269,7 @@ impl<T: PartialOrd + Clone> Default for SkipList<T> {
     fn default() -> Self {
         Self::new(
             Box::new(Random::new(0xdead_beef)),
-            Rc::new(DefaultComparator::default()),
+            Arc::new(DefaultComparator::default()),
         )
     }
 }
