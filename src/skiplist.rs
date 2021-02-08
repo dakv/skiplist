@@ -26,6 +26,9 @@ pub struct SkipList<T> {
     cmp: Arc<dyn BaseComparator<T>>,
 }
 
+unsafe impl<T> Send for SkipList<T> {}
+unsafe impl<T> Sync for SkipList<T> {}
+
 // todo remove Clone
 impl<T: Clone> SkipList<T> {
     pub fn new(rnd: Box<dyn RandomGenerator>, cmp: Arc<dyn BaseComparator<T>>) -> Self {
