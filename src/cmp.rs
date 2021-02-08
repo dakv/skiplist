@@ -29,12 +29,13 @@ where
 mod tests {
     use super::BaseComparator;
     use crate::cmp::DefaultComparator;
+    use std::cmp::Ordering;
 
     #[test]
     fn test_basic() {
         let cmp = DefaultComparator::default();
-        assert_eq!(cmp.compare(&1u64, &2), -1);
-        assert_eq!(cmp.compare(&2u32, &2), 0);
-        assert_eq!(cmp.compare(&2u8, &1), 1);
+        assert_eq!(cmp.compare(&1u64, &2), Ordering::Less);
+        assert_eq!(cmp.compare(&2u32, &2), Ordering::Equal);
+        assert_eq!(cmp.compare(&2u8, &1), Ordering::Greater);
     }
 }

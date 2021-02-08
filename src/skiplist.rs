@@ -408,7 +408,7 @@ mod tests {
 
         let mut sl = SkipList::default();
         sl.extend(vec![3, 4, 6, 7, 1, 2, 5]);
-        for i in vec![3, 4, 6, 7, 1, 2, 5] {
+        for i in &[3, 4, 6, 7, 1, 2, 5] {
             assert!(sl.contains(&i));
         }
     }
