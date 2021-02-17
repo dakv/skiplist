@@ -9,6 +9,7 @@ use std::mem;
 use std::ptr::null_mut;
 use std::ptr::NonNull;
 use std::sync::Arc;
+use typed_arena::Arena;
 
 /// Skip list is a data structure that allows O(log n) search complexity as well as
 /// O(log n) insertion complexity within an ordered sequence of n elements.
@@ -24,9 +25,11 @@ pub struct SkipList<T> {
     max_height: usize,
     len: usize,
     cmp: Arc<dyn BaseComparator<T>>,
+    arena: Arena<Node<T>>,
 }
 
 unsafe impl<T> Send for SkipList<T> {}
+
 unsafe impl<T> Sync for SkipList<T> {}
 
 // todo remove Clone
@@ -34,10 +37,11 @@ impl<T: Clone> SkipList<T> {
     pub fn new(rnd: Box<dyn RandomGenerator>, cmp: Arc<dyn BaseComparator<T>>) -> Self {
         SkipList {
             head: Box::new(Node::head()),
-            rnd,
-            cmp,
+            arena: Arena::new(),
             max_height: 1, // max height in all of the nodes except head node
             len: 0,
+            rnd,
+            cmp,
         }
     }
 
@@ -45,9 +49,10 @@ impl<T: Clone> SkipList<T> {
         SkipList {
             head: Box::new(Node::head()),
             rnd: Box::new(Random::new(0xdead_beef)),
-            cmp,
             max_height: 1, // max height in all of the nodes except head node
+            arena: Arena::new(),
             len: 0,
+            cmp,
         }
     }
 
@@ -81,6 +86,10 @@ impl<T: Clone> SkipList<T> {
     #[inline]
     pub fn is_empty(&self) -> bool {
         self.len == 0
+    }
+
+    pub fn memory_size(&self) -> usize {
+        self.arena.len()
     }
 
     #[inline]
@@ -178,9 +187,9 @@ impl<T: Clone> SkipList<T> {
             // todo concurrent support
             self.set_max_height(height);
         }
-        let x = Box::new(Node::new(key.clone()));
-        let mut x = NonNull::from(Box::leak(x));
-        //            let mut x = Box::into_raw_non_null(x);
+        // Accelerate memory allocation
+        let n = self.arena.alloc(Node::new(key.clone()));
+        let mut x = NonNull::from(n);
         for (i, &mut node) in prev.iter_mut().enumerate().take(height) {
             unsafe {
                 let tmp = (*node).get_mut_next(i);
