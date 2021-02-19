@@ -89,7 +89,7 @@ impl<T: Clone> SkipList<T> {
     }
 
     pub fn memory_size(&self) -> usize {
-        self.arena.len()
+        self.arena.len() * mem::size_of::<Node<T>>()
     }
 
     #[inline]
