@@ -1,28 +1,28 @@
 use crate::K_MAX_HEIGHT;
-use std::fmt;
 use std::fmt::{Error, Formatter};
 use std::ptr::NonNull;
+use std::{fmt, iter};
 
 /// Key and value should never be None, except the head node.
 /// Forward can not be None, except head node
-#[derive(Copy, Clone, Debug)]
+// #[derive(Clone, Debug)]
 pub struct Node<T> {
     pub data: Option<T>,
-    pub forward: [Option<NonNull<Node<T>>>; K_MAX_HEIGHT],
+    pub forward: Vec<Option<NonNull<Node<T>>>>,
 }
 
 impl<T> Node<T> {
-    pub fn new(data: T) -> Self {
+    pub fn new(data: T, length: usize) -> Self {
         Node {
             data: Some(data),
-            forward: [None; K_MAX_HEIGHT],
+            forward: iter::repeat(None).take(length).collect::<Vec<_>>(),
         }
     }
 
     pub fn head() -> Self {
         Node {
             data: None,
-            forward: [None; K_MAX_HEIGHT],
+            forward: iter::repeat(None).take(K_MAX_HEIGHT).collect::<Vec<_>>(),
         }
     }
 
@@ -65,18 +65,18 @@ mod tests {
         let node = Node::<u8>::head();
         assert_eq!(format!("{}", node), "");
 
-        let node = Node::new(1);
+        let node = Node::new(1, 0);
         assert_eq!(format!("{}", node), "1");
 
-        let node = Node::new("da");
+        let node = Node::new("da", 0);
         assert_eq!(format!("{}", node), "da");
     }
 
     #[test]
     fn test_next() {
-        let mut node = Node::new(1);
-        let mut next = Node::new(2);
-        let mut tail = Node::new(3);
+        let mut node = Node::new(1, 3);
+        let mut next = Node::new(2, 4);
+        let mut tail = Node::new(3, 0);
         node.set_next(2, NonNull::new(&mut next));
         let ret = node.get_next(1);
         assert!(ret.is_none());
@@ -85,8 +85,7 @@ mod tests {
         next.set_next(3, NonNull::new(&mut tail));
         unsafe {
             if let Some(v) = next.get_next(3) {
-                let d = *v;
-                assert_eq!(d.data.unwrap(), 3);
+                assert_eq!((*v).data.unwrap(), 3);
             }
         }
     }

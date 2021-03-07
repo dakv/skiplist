@@ -188,7 +188,7 @@ impl<T: Clone> SkipList<T> {
             self.set_max_height(height);
         }
         // Accelerate memory allocation
-        let n = self.arena.alloc(Node::new(key.clone()));
+        let n = self.arena.alloc(Node::new(key.clone(), height));
         let mut x = NonNull::from(n);
         for (i, &mut node) in prev.iter_mut().enumerate().take(height) {
             unsafe {
@@ -438,5 +438,6 @@ mod tests {
             sl.insert(&i);
         }
         assert_eq!("[1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7 -> ]", format!("{}", sl));
+        assert_eq!(sl.memory_size(), 280);
     }
 }
