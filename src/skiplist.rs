@@ -25,7 +25,8 @@ pub struct SkipList<T> {
     max_height: usize,
     len: usize,
     cmp: Arc<dyn BaseComparator<T>>,
-    arena: Arena<Node<T>>,
+    /// node_arena stores all the nodes in skip list.
+    node_arena: Arena<Node<T>>,
 }
 
 unsafe impl<T> Send for SkipList<T> {}
@@ -37,7 +38,7 @@ impl<T: Clone> SkipList<T> {
     pub fn new(rnd: Box<dyn RandomGenerator>, cmp: Arc<dyn BaseComparator<T>>) -> Self {
         SkipList {
             head: Box::new(Node::head()),
-            arena: Arena::new(),
+            node_arena: Arena::new(),
             max_height: 1, // max height in all of the nodes except head node
             len: 0,
             rnd,
@@ -50,7 +51,7 @@ impl<T: Clone> SkipList<T> {
             head: Box::new(Node::head()),
             rnd: Box::new(Random::new(0xdead_beef)),
             max_height: 1, // max height in all of the nodes except head node
-            arena: Arena::new(),
+            node_arena: Arena::new(),
             len: 0,
             cmp,
         }
@@ -89,7 +90,7 @@ impl<T: Clone> SkipList<T> {
     }
 
     pub fn memory_size(&self) -> usize {
-        self.arena.len() * mem::size_of::<Node<T>>()
+        self.node_arena.len() * mem::size_of::<Node<T>>()
     }
 
     #[inline]
@@ -188,7 +189,7 @@ impl<T: Clone> SkipList<T> {
             self.set_max_height(height);
         }
         // Accelerate memory allocation
-        let n = self.arena.alloc(Node::new(key.clone(), height));
+        let n = self.node_arena.alloc(Node::new(key.clone(), height));
         let mut x = NonNull::from(n);
         for (i, &mut node) in prev.iter_mut().enumerate().take(height) {
             unsafe {
