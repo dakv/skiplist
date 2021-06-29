@@ -1,20 +1,14 @@
 use std::cmp::Ordering;
 
-pub trait BaseComparator<T> {
-    // error[E0658]: associated type defaults are unstable
-    // To make into an object
-    fn compare(&self, a: &T, b: &T) -> Ordering;
+pub trait BaseComparator {
+    fn compare(&self, a: &[u8], b: &[u8]) -> Ordering;
 }
-// fixme i8 -> Order
 
 #[derive(Default)]
 pub struct DefaultComparator {}
 
-impl<T> BaseComparator<T> for DefaultComparator
-where
-    T: PartialOrd,
-{
-    fn compare(&self, a: &T, b: &T) -> Ordering {
+impl BaseComparator for DefaultComparator {
+    fn compare(&self, a: &[u8], b: &[u8]) -> Ordering {
         if a.eq(b) {
             Ordering::Equal
         } else if a.gt(b) {
@@ -34,8 +28,8 @@ mod tests {
     #[test]
     fn test_basic() {
         let cmp = DefaultComparator::default();
-        assert_eq!(cmp.compare(&1u64, &2), Ordering::Less);
-        assert_eq!(cmp.compare(&2u32, &2), Ordering::Equal);
-        assert_eq!(cmp.compare(&2u8, &1), Ordering::Greater);
+        assert_eq!(cmp.compare(&[1], &[2]), Ordering::Less);
+        assert_eq!(cmp.compare(&[2], &[2]), Ordering::Equal);
+        assert_eq!(cmp.compare(&[2], &[1]), Ordering::Greater);
     }
 }

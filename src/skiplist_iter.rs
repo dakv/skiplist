@@ -1,16 +1,14 @@
-use crate::{Node, SkipList};
+use crate::skipnode::Node;
+use crate::SkipList;
 use std::ptr::null;
 
-pub struct SkipListIter<T> {
-    list: *const SkipList<T>,
-    node: *const Node<T>,
+pub struct SkipListIter {
+    list: *const SkipList,
+    node: *const Node,
 }
 
-impl<T> SkipListIter<T>
-where
-    T: Clone + std::fmt::Display,
-{
-    pub fn new(list: *const SkipList<T>) -> Self {
+impl SkipListIter {
+    pub fn new(list: *const SkipList) -> Self {
         Self { list, node: null() }
     }
 
@@ -20,10 +18,7 @@ where
 
     pub fn seek_to_first(&mut self) {
         let n = unsafe { (*self.list).get_head() };
-        self.node = match n.get_next(0) {
-            Some(v) => v,
-            None => null(),
-        };
+        self.node = n.get_next(0);
     }
 
     pub fn seek_to_last(&mut self) {
@@ -33,22 +28,18 @@ where
         }
     }
 
-    pub fn seek(&mut self, s: &T) {
+    pub fn seek(&mut self, s: &[u8]) {
         self.node = unsafe { (*self.list).find(s, &mut vec![]) };
     }
 
     pub fn next(&mut self) {
         assert!(self.valid());
-        if let Some(s) = unsafe { (*self.node).get_next(0) } {
-            self.node = s;
-        } else {
-            self.node = null();
-        }
+        self.node = unsafe { (*self.node).get_next(0) };
     }
 
     pub fn prev(&mut self) {
         assert!(self.valid());
-        let key = unsafe { (*self.node).data.as_ref().unwrap() };
+        let key = unsafe { (*self.node).data.as_ref() };
         self.node = unsafe { (*self.list).find_less_than(key) };
 
         if self.node == unsafe { (*self.list).get_head() } {
@@ -56,11 +47,8 @@ where
         }
     }
 
-    pub fn key(&self) -> &T {
+    pub fn key(&self) -> &[u8] {
         assert!(self.valid());
-        unsafe {
-            let result = (*self.node).data.as_ref().unwrap();
-            result
-        }
+        unsafe { (*self.node).data.as_ref() as _ }
     }
 }
