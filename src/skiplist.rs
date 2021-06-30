@@ -118,9 +118,9 @@ impl SkipList {
 
     /// 1/4 probability
     fn random_height(&mut self) -> usize {
-        static K_BRANCHING: u64 = 4;
+        let k_branching = 4;
         let mut height = 1;
-        while height < K_MAX_HEIGHT && (self.inner.rnd.next() % K_BRANCHING == 0) {
+        while height < K_MAX_HEIGHT && (self.inner.rnd.next() % k_branching == 0) {
             height += 1;
         }
         assert!(height > 0);
