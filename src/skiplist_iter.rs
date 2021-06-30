@@ -1,15 +1,19 @@
 use crate::skipnode::Node;
-use crate::SkipList;
-use std::ptr::null;
+use crate::{SkipList, K_MAX_HEIGHT};
+use std::iter;
+use std::ptr::{null, null_mut};
 
 pub struct SkipListIter {
-    list: *const SkipList,
+    list: SkipList,
     node: *const Node,
 }
 
 impl SkipListIter {
-    pub fn new(list: *const SkipList) -> Self {
-        Self { list, node: null() }
+    pub fn new(list: &SkipList) -> Self {
+        Self {
+            list: SkipList::from(list),
+            node: null(),
+        }
     }
 
     pub fn valid(&self) -> bool {
@@ -17,19 +21,20 @@ impl SkipListIter {
     }
 
     pub fn seek_to_first(&mut self) {
-        let n = unsafe { (*self.list).get_head() };
+        let n = self.list.get_head();
         self.node = n.get_next(0);
     }
 
     pub fn seek_to_last(&mut self) {
-        self.node = unsafe { (*self.list).find_last() };
-        if self.node == unsafe { (*self.list).get_head() } {
+        self.node = self.list.find_last();
+        if self.node == self.list.get_head() {
             self.node = null();
         }
     }
 
     pub fn seek(&mut self, s: &[u8]) {
-        self.node = unsafe { (*self.list).find(s, &mut vec![]) };
+        let mut prev = iter::repeat(null_mut()).take(K_MAX_HEIGHT).collect();
+        self.node = self.list.find(s, &mut prev);
     }
 
     pub fn next(&mut self) {
@@ -40,9 +45,9 @@ impl SkipListIter {
     pub fn prev(&mut self) {
         assert!(self.valid());
         let key = unsafe { (*self.node).data.as_ref() };
-        self.node = unsafe { (*self.list).find_less_than(key) };
+        self.node = self.list.find_less_than(key);
 
-        if self.node == unsafe { (*self.list).get_head() } {
+        if self.node == self.list.get_head() {
             self.node = null();
         }
     }

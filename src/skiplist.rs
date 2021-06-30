@@ -257,6 +257,14 @@ pub struct SkipList {
     inner: Arc<SkipListInner>,
 }
 
+impl From<&SkipList> for SkipList {
+    fn from(sl: &SkipList) -> Self {
+        SkipList {
+            inner: sl.inner.clone(),
+        }
+    }
+}
+
 impl fmt::Display for SkipList {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[")?;
