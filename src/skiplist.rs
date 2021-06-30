@@ -373,7 +373,7 @@ mod tests {
     fn test_basic() {
         let mut sl = SkipList::default();
         for i in 0..100u8 {
-            sl.insert(Bytes::from(vec![i]));
+            sl.insert(vec![i]);
         }
         assert_eq!(sl.len(), 100);
         for i in 0..100 {
@@ -388,7 +388,7 @@ mod tests {
     fn test_clear() {
         let mut sl = SkipList::default();
         for i in 0..12 {
-            sl.insert(Bytes::from(vec![i]));
+            sl.insert(vec![i]);
         }
         sl.clear();
         assert!(sl.is_empty());
@@ -432,7 +432,7 @@ mod tests {
     fn test_basic_desc() {
         let mut sl = SkipList::default();
         for i in (0..12).rev() {
-            sl.insert(Bytes::from(vec![i]));
+            sl.insert(vec![i]);
         }
         assert_eq!(
             "[[0] [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] [11] ]",
@@ -457,7 +457,7 @@ mod tests {
             thread::Builder::new()
                 .name(format!("thread:{}", i))
                 .spawn(move || {
-                    csl.insert(Bytes::from(vec![i]));
+                    csl.insert(vec![i]);
                 })
                 .unwrap();
         }

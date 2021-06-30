@@ -57,3 +57,27 @@ impl SkipListIter {
         unsafe { (*self.node).data.as_ref() as _ }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic() {
+        let mut sl = SkipList::default();
+        for i in 0..100u8 {
+            sl.insert(vec![i]);
+        }
+
+        let mut iter = SkipListIter::new(&sl);
+        assert!(!iter.valid());
+        iter.seek_to_first();
+        assert!(iter.valid());
+        assert_eq!(iter.key(), &[0]);
+        iter.seek_to_last();
+        assert_eq!(iter.key(), &[99]);
+
+        iter.seek(&[88]);
+        assert_eq!(iter.key(), &[88]);
+    }
+}
