@@ -41,12 +41,7 @@ impl RandomGenerator for Random {
     fn next(&self) -> u64 {
         static M: u64 = 2_147_483_647; // 2^31-1
         static A: u64 = 16807; // bits 14, 8, 7, 5, 2, 1, 0
-        let product = self
-            .seed
-            .fetch_update(Ordering::SeqCst, Ordering::SeqCst, |v| {
-                Some(v.wrapping_mul(A))
-            })
-            .unwrap();
+        let product = self.seed.load(Ordering::SeqCst) * A;
         self.seed
             .store((product >> 31) + (product & M), Ordering::SeqCst);
 
@@ -64,6 +59,9 @@ mod tests {
     #[test]
     fn test_cmp() {
         let s = Random::new(0xdead_beef);
-        assert_eq!(s.next(), 1588444911);
+        assert_eq!(s.next(), 1624403320);
+        assert!(s.one_in(386994929));
+        assert_eq!(s.uniform(1643288587 + 1), 1643288587);
+        assert_eq!(s.next(), 2111581289);
     }
 }

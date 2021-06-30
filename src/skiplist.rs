@@ -430,7 +430,7 @@ mod tests {
 
     #[test]
     fn test_basic_desc() {
-        let mut sl = SkipList::default();
+        let mut sl = SkipList::new_by_cmp(Arc::new(DefaultComparator::default()));
         for i in (0..12).rev() {
             sl.insert(vec![i]);
         }

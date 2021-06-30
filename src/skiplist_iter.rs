@@ -79,5 +79,13 @@ mod tests {
 
         iter.seek(&[88]);
         assert_eq!(iter.key(), &[88]);
+
+        iter.next();
+        assert_eq!(iter.key(), &[89]);
+
+        iter.seek(&[99]);
+        assert_eq!(iter.key(), &[99]);
+        iter.prev();
+        assert_eq!(iter.key(), &[98]);
     }
 }
