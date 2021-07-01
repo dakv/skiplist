@@ -9,7 +9,7 @@ use std::iter;
 use std::marker::PhantomData;
 use std::mem;
 use std::ptr::{null_mut, NonNull};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::sync::Arc;
 
 /// Skip list is a data structure that allows O(log n) search complexity as well as
@@ -26,6 +26,7 @@ pub struct SkipListInner {
     cmp: Arc<dyn BaseComparator + Send + Sync>,
     max_height: AtomicUsize,
     len: AtomicUsize,
+    size: AtomicUsize,
     herd: Herd,
 }
 
@@ -43,6 +44,7 @@ impl SkipList {
                 head: NonNull::from(Node::head(&herd)),
                 max_height: AtomicUsize::new(1), // max height in all of the nodes except head node
                 len: AtomicUsize::new(0),
+                size: AtomicUsize::new(0),
                 herd,
                 rnd,
                 cmp,
@@ -87,7 +89,7 @@ impl SkipList {
     }
 
     pub fn memory_size(&self) -> usize {
-        (self.inner.len.load(Ordering::SeqCst) + 1) * mem::size_of::<Node>()
+        self.inner.size.load(Ordering::SeqCst)
     }
 
     #[inline]
@@ -189,6 +191,12 @@ impl SkipList {
             }
         }
 
+        self.inner.size.fetch_add(
+            mem::size_of::<AtomicPtr<Node>>() * height
+                + mem::size_of::<AtomicPtr<usize>>()
+                + mem::size_of::<AtomicPtr<Bytes>>(),
+            Ordering::SeqCst,
+        );
         self.inner.len.fetch_add(1, Ordering::SeqCst);
     }
 
@@ -444,7 +452,7 @@ mod tests {
             sl.insert(vec![i]);
         }
         assert_eq!("[[1] [2] [3] [4] [5] [6] [7] ]", format!("{}", sl));
-        assert_eq!(sl.memory_size(), 1088);
+        assert_eq!(sl.memory_size(), 176);
     }
 
     #[test]
