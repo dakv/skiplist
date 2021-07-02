@@ -32,9 +32,9 @@ impl SkipListIter {
         }
     }
 
-    pub fn seek(&mut self, s: &[u8]) {
+    pub fn seek(&mut self, target: &[u8]) {
         let mut prev = iter::repeat(null_mut()).take(K_MAX_HEIGHT).collect();
-        self.node = self.list.find(s, &mut prev);
+        self.node = self.list.find(target, &mut prev);
     }
 
     pub fn next(&mut self) {
