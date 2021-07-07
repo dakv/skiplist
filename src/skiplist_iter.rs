@@ -1,19 +1,26 @@
 use crate::skipnode::Node;
-use crate::{SkipList, K_MAX_HEIGHT};
+use crate::{Arena, BaseComparator, RandomGenerator, SkipList, K_MAX_HEIGHT};
 use std::iter;
 use std::ptr::{null, null_mut};
 
-pub struct SkipListIter {
-    list: SkipList,
+pub struct SkipListIter<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
+    list: SkipList<R, C, A>,
     node: *const Node,
 }
 
-impl SkipListIter {
-    pub fn new(list: &SkipList) -> Self {
-        Self {
-            list: SkipList::from(list),
-            node: null(),
-        }
+impl<R, C, A> SkipListIter<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
+    pub fn new(list: SkipList<R, C, A>) -> Self {
+        Self { list, node: null() }
     }
 
     pub fn valid(&self) -> bool {
@@ -32,6 +39,7 @@ impl SkipListIter {
         }
     }
 
+    /// For mem table to seek entry.
     pub fn seek(&mut self, target: &[u8]) {
         let mut prev = iter::repeat(null_mut()).take(K_MAX_HEIGHT).collect();
         self.node = self.list.find(target, &mut prev);
@@ -61,15 +69,21 @@ impl SkipListIter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cmp::DefaultComparator;
+    use crate::{ArenaImpl, Random};
 
     #[test]
     fn test_basic() {
-        let mut sl = SkipList::default();
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
         for i in 0..100u8 {
             sl.insert(vec![i]);
         }
 
-        let mut iter = SkipListIter::new(&sl);
+        let mut iter = SkipListIter::new(sl);
         assert!(!iter.valid());
         iter.seek_to_first();
         assert!(iter.valid());

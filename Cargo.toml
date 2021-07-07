@@ -13,7 +13,6 @@ categories = ["skiplist", "dakv"]
 
 [dependencies]
 bytes = "1.0.1"
-bumpalo-herd = "0.1.1"
 
 [dev-dependencies]
 criterion = "0.3"

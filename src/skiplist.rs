@@ -1,7 +1,5 @@
-use crate::cmp::DefaultComparator;
 use crate::skipnode::Node;
-use crate::{BaseComparator, Random, RandomGenerator, K_MAX_HEIGHT};
-use bumpalo_herd::Herd;
+use crate::{Arena, BaseComparator, RandomGenerator, K_MAX_HEIGHT};
 use bytes::Bytes;
 use std::cmp;
 use std::fmt;
@@ -9,7 +7,7 @@ use std::iter;
 use std::marker::PhantomData;
 use std::mem;
 use std::ptr::{null_mut, NonNull};
-use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 /// Skip list is a data structure that allows O(log n) search complexity as well as
@@ -20,48 +18,75 @@ use std::sync::Arc;
 /// subsequence skipping over fewer elements than the previous one. Searching starts
 /// in the sparsest subsequence until two consecutive elements have been found,
 /// one smaller and one larger than or equal to the element searched for.
-pub struct SkipListInner {
+pub struct SkipListInner<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
     head: NonNull<Node>,
-    rnd: Box<dyn RandomGenerator + Send + Sync>,
-    cmp: Arc<dyn BaseComparator + Send + Sync>,
     max_height: AtomicUsize,
     len: AtomicUsize,
-    size: AtomicUsize,
-    herd: Herd,
+    rnd: R,
+    cmp: C,
+    arena: A,
 }
 
-unsafe impl Send for SkipListInner {}
-unsafe impl Sync for SkipListInner {}
+unsafe impl<R, C, A> Send for SkipListInner<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
+}
 
-impl SkipList {
-    pub fn new(
-        rnd: Box<dyn RandomGenerator + Send + Sync>,
-        cmp: Arc<dyn BaseComparator + Send + Sync>,
-    ) -> Self {
-        let herd = Herd::new();
+unsafe impl<R, C, A> Sync for SkipListInner<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
+}
+
+#[derive(Clone)]
+pub struct SkipList<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
+    inner: Arc<SkipListInner<R, C, A>>,
+}
+
+impl<R, C, A> SkipList<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
+    pub fn new(rnd: R, cmp: C, arena: A) -> Self {
         SkipList {
             inner: Arc::new(SkipListInner {
-                head: NonNull::from(Node::head(&herd)),
+                head: NonNull::from(Node::head(&arena)),
                 max_height: AtomicUsize::new(1), // max height in all of the nodes except head node
                 len: AtomicUsize::new(0),
-                size: AtomicUsize::new(0),
-                herd,
                 rnd,
                 cmp,
+                arena,
             }),
         }
-    }
-
-    pub fn new_by_cmp(cmp: Arc<dyn BaseComparator + Send + Sync>) -> Self {
-        Self::new(Box::new(Random::new(0xdead_beef)), cmp)
     }
 
     /// Returns the number of elements in the skiplist.
     /// # Examples
     /// ```
-    /// use dakv_skiplist::SkipList;
+    /// use dakv_skiplist::{SkipList, Random, ArenaImpl, DefaultComparator};
     ///
-    /// let mut sl = SkipList::default();
+    /// let mut sl = SkipList::new(
+    ///     Random::new(0xdead_beef),
+    ///     DefaultComparator::default (),
+    ///     ArenaImpl::new(),
+    /// );
     /// assert_eq!(sl.len(), 0);
     ///
     /// sl.insert(vec![1u8]);
@@ -75,9 +100,13 @@ impl SkipList {
     /// Returns `true` if the skiplist is empty.
     /// # Examples
     /// ```
-    /// use dakv_skiplist::SkipList;
+    /// use dakv_skiplist::{SkipList, Random, ArenaImpl, DefaultComparator};
     ///
-    /// let mut sl = SkipList::default();
+    /// let mut sl = SkipList::new(
+    ///     Random::new(0xdead_beef),
+    ///     DefaultComparator::default (),
+    ///     ArenaImpl::new(),
+    /// );
     /// assert!(sl.is_empty());
     ///
     /// sl.insert(vec![1u8]);
@@ -89,7 +118,7 @@ impl SkipList {
     }
 
     pub fn memory_size(&self) -> usize {
-        self.inner.size.load(Ordering::SeqCst)
+        self.inner.arena.memory_usage()
     }
 
     #[inline]
@@ -105,8 +134,13 @@ impl SkipList {
     /// Clear every single node and reset the head node.
     /// # Examples
     /// ```
-    /// use dakv_skiplist::SkipList;
-    /// let mut sl = SkipList::default();
+    /// use dakv_skiplist::{SkipList, Random, ArenaImpl, DefaultComparator};
+    ///
+    /// let mut sl = SkipList::new(
+    ///     Random::new(0xdead_beef),
+    ///     DefaultComparator::default (),
+    ///     ArenaImpl::new(),
+    /// );
     /// sl.insert(vec![1u8]);
     /// sl.clear();
     /// assert_eq!(sl.is_empty(), true);
@@ -182,7 +216,7 @@ impl SkipList {
             self.set_max_height(height);
         }
         // Accelerate memory allocation
-        let n = Node::new(key, height, &self.inner.herd);
+        let n = Node::new(key, height, &self.inner.arena);
         for (i, &mut node) in prev.iter_mut().enumerate().take(height) {
             unsafe {
                 let tmp = (*node).get_next(i);
@@ -190,13 +224,6 @@ impl SkipList {
                 (*node).set_next(i, n);
             }
         }
-
-        self.inner.size.fetch_add(
-            mem::size_of::<AtomicPtr<Node>>() * height
-                + mem::size_of::<AtomicPtr<usize>>()
-                + mem::size_of::<AtomicPtr<Bytes>>(),
-            Ordering::SeqCst,
-        );
         self.inner.len.fetch_add(1, Ordering::SeqCst);
     }
 
@@ -260,20 +287,12 @@ impl SkipList {
     }
 }
 
-#[derive(Clone)]
-pub struct SkipList {
-    inner: Arc<SkipListInner>,
-}
-
-impl From<&SkipList> for SkipList {
-    fn from(sl: &SkipList) -> Self {
-        SkipList {
-            inner: sl.inner.clone(),
-        }
-    }
-}
-
-impl fmt::Display for SkipList {
+impl<R, C, A> fmt::Display for SkipList<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "[")?;
         unsafe {
@@ -292,19 +311,12 @@ impl fmt::Display for SkipList {
     }
 }
 
-impl Default for SkipList {
-    #[inline]
-    fn default() -> Self {
-        SkipList::new(
-            Box::new(Random::new(0xdead_beef)),
-            Arc::new(DefaultComparator::default()),
-        )
-    }
-}
-
-impl<T> Extend<T> for SkipList
+impl<R, C, A, T> Extend<T> for SkipList<R, C, A>
 where
     T: Into<u8>,
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
 {
     #[inline]
     fn extend<I: iter::IntoIterator<Item = T>>(&mut self, iterable: I) {
@@ -312,21 +324,6 @@ where
         for element in iterator {
             self.insert(Bytes::from(vec![element.into()]));
         }
-    }
-}
-
-impl<T> iter::FromIterator<T> for SkipList
-where
-    T: Into<u8>,
-{
-    #[inline]
-    fn from_iter<I>(iter: I) -> SkipList
-    where
-        I: iter::IntoIterator<Item = T>,
-    {
-        let mut sl = SkipList::default();
-        sl.extend(iter);
-        sl
     }
 }
 
@@ -359,7 +356,12 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
-impl<'a> iter::IntoIterator for &'a SkipList {
+impl<'a, R, C, A> iter::IntoIterator for &'a SkipList<R, C, A>
+where
+    R: RandomGenerator,
+    C: BaseComparator,
+    A: Arena,
+{
     type Item = &'a Node;
     type IntoIter = Iter<'a>;
 
@@ -374,12 +376,15 @@ impl<'a> iter::IntoIterator for &'a SkipList {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use std::thread;
+    use crate::{ArenaImpl, DefaultComparator, Random, SkipList};
 
     #[test]
     fn test_basic() {
-        let mut sl = SkipList::default();
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
         for i in 0..100u8 {
             sl.insert(vec![i]);
         }
@@ -394,18 +399,25 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        let mut sl = SkipList::default();
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
         for i in 0..12 {
             sl.insert(vec![i]);
         }
         sl.clear();
         assert!(sl.is_empty());
-        // assert_eq!(format!("{}", sl), "[]");
     }
 
     #[test]
     fn test_extend() {
-        let mut sl = SkipList::default();
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
         sl.extend(0..10);
         assert_eq!(sl.len(), 10);
         for i in 0..10 {
@@ -414,22 +426,22 @@ mod tests {
     }
 
     #[test]
-    fn test_from_iter() {
-        let mut sl: SkipList = (0..10).collect();
-        for i in 0..10 {
-            assert!(sl.contains(&[i]));
-        }
-    }
-
-    #[test]
     fn test_into_iter() {
-        let mut sl = SkipList::default();
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
         sl.extend(0..10);
         for (count, i) in (&sl).into_iter().enumerate() {
             assert_eq!(i.data.as_ref()[0], count as u8);
         }
 
-        let mut sl = SkipList::default();
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
         sl.extend(vec![3, 4, 6, 7, 1, 2, 5]);
         for i in [3, 4, 6, 7, 1, 2, 5] {
             assert!(sl.contains(&[i]));
@@ -438,7 +450,11 @@ mod tests {
 
     #[test]
     fn test_basic_desc() {
-        let mut sl = SkipList::new_by_cmp(Arc::new(DefaultComparator::default()));
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
         for i in (0..12).rev() {
             sl.insert(vec![i]);
         }
@@ -447,31 +463,34 @@ mod tests {
             format!("{}", sl)
         );
 
-        let mut sl = SkipList::default();
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
         for i in [3, 4, 6, 7, 1, 2, 5] {
             sl.insert(vec![i]);
         }
         assert_eq!("[[1] [2] [3] [4] [5] [6] [7] ]", format!("{}", sl));
-        assert_eq!(sl.memory_size(), 176);
     }
 
     #[test]
     #[ignore]
     fn test_concurrency() {
         // todo concurrent test
-        let sl = SkipList::default();
-        for i in 0..12 {
-            let mut csl = sl.clone();
-            thread::Builder::new()
-                .name(format!("thread:{}", i))
-                .spawn(move || {
-                    csl.insert(vec![i]);
-                })
-                .unwrap();
-        }
-        assert_eq!(
-            "[[0] [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] [11] ]",
-            format!("{}", sl)
-        );
+        // let sl: SkipList<Random, DefaultComparator, ArenaImpl> = SkipList::default();
+        // for i in 0..12 {
+        //     let mut csl = sl.clone();
+        //     thread::Builder::new()
+        //         .name(format!("thread:{}", i))
+        //         .spawn(move || {
+        //             csl.insert(vec![i]);
+        //         })
+        //         .unwrap();
+        // }
+        // assert_eq!(
+        //     "[[0] [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] [11] ]",
+        //     format!("{}", sl)
+        // );
     }
 }
