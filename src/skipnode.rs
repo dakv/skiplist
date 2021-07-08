@@ -12,8 +12,8 @@ pub struct Node {
 impl Node {
     #[allow(clippy::mut_from_ref)]
     pub fn new<A: Arena>(data: Bytes, height: usize, arena: &A) -> &mut Self {
-        let size =
-            mem::size_of::<Self>() - (K_MAX_HEIGHT - height) * mem::size_of::<AtomicPtr<Self>>();
+        let size = mem::size_of::<Self>() /* 32 */
+                - (K_MAX_HEIGHT - height) * mem::size_of::<AtomicPtr<Self>>(); /* 8 * height*/
 
         let ptr = arena.alloc(size) as *mut Node;
 
@@ -69,7 +69,7 @@ mod tests {
 
         let node = Node::new(vec![1].into(), 3, &arena);
         let next = Node::new(vec![2].into(), 4, &arena);
-        let tail = Node::new(vec![3].into(), 0, &arena);
+        let tail = Node::new(vec![3].into(), 1, &arena);
         node.set_next(2, next);
         let ret = node.get_next(1);
         assert!(ret.is_null());

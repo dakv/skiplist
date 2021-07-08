@@ -2,7 +2,7 @@ use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::{mem, slice};
 
-const K_BLOCK_SIZE: usize = 4096;
+pub const K_BLOCK_SIZE: usize = 4096;
 
 #[derive(Default)]
 pub struct ArenaInner {
@@ -88,6 +88,8 @@ pub trait Arena {
     /// Returns an estimate of the total memory usage of data allocated
     /// by the arena.
     fn memory_usage(&self) -> usize;
+
+    fn remain_bytes(&self) -> usize;
 }
 
 impl Default for ArenaImpl {
@@ -154,6 +156,10 @@ impl Arena for ArenaImpl {
 
     fn memory_usage(&self) -> usize {
         self.inner.memory_usage()
+    }
+
+    fn remain_bytes(&self) -> usize {
+        self.inner.remaining_bytes()
     }
 }
 

@@ -121,6 +121,10 @@ where
         self.inner.arena.memory_usage()
     }
 
+    pub fn remain_bytes(&self) -> usize {
+        self.inner.arena.remain_bytes()
+    }
+
     #[inline]
     pub fn get_max_height(&self) -> usize {
         self.inner.max_height.load(Ordering::SeqCst)
@@ -376,7 +380,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::arena::K_BLOCK_SIZE;
     use crate::{ArenaImpl, DefaultComparator, Random, SkipList};
+    use std::mem;
 
     #[test]
     fn test_basic() {
@@ -472,6 +478,20 @@ mod tests {
             sl.insert(vec![i]);
         }
         assert_eq!("[[1] [2] [3] [4] [5] [6] [7] ]", format!("{}", sl));
+    }
+
+    #[test]
+    fn test_memory_usage() {
+        let mut sl = SkipList::new(
+            Random::new(0xdead_beef),
+            DefaultComparator::default(),
+            ArenaImpl::new(),
+        );
+        assert_eq!(sl.memory_size(), K_BLOCK_SIZE + mem::size_of::<usize>());
+        assert_eq!(sl.remain_bytes(), 3968); // 3992 - 3968 = 24 = (32 - 16)
+        sl.insert(vec![0; 1000]);
+        assert_eq!(sl.memory_size(), K_BLOCK_SIZE + mem::size_of::<usize>());
+        assert_eq!(sl.remain_bytes(), 3920); // 48 = 32 + 8 * height(2)
     }
 
     #[test]
