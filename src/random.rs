@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::Arc;
 
 pub trait RandomGenerator {
     fn next(&self) -> u32;
@@ -21,8 +22,9 @@ pub trait RandomGenerator {
     }
 }
 
+#[derive(Clone)]
 pub struct Random {
-    seed: AtomicU32,
+    seed: Arc<AtomicU32>,
 }
 
 impl Random {
@@ -32,7 +34,7 @@ impl Random {
             seed = 1;
         }
         Random {
-            seed: AtomicU32::new(seed),
+            seed: Arc::new(AtomicU32::new(seed)),
         }
     }
 }

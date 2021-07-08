@@ -70,6 +70,7 @@ impl ArenaInner {
     }
 }
 
+#[derive(Clone)]
 pub struct ArenaImpl {
     inner: Arc<ArenaInner>,
 }
